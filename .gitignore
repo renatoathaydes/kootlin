@@ -1,0 +1,10 @@
+*.class
+*.log
+*.jar
+hs_err_pid*
+.gradle
+/build/
+!gradle-wrapper.jar
+.gradletasknamecache
+.idea/
+*.iml
