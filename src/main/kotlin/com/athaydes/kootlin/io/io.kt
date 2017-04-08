@@ -20,8 +20,8 @@ class Print<out V>(private val value: Value<V>) : IO<V>() {
     override val action = { print(value.lift); value.lift }
 }
 
-class BytesFile(private val file: File) : IO<ByteArray>() {
-    override val action = { file.readBytes() }
+class BytesFile(file: File) : IO<ByteArray>() {
+    override val action = file::readBytes
 }
 
 class TextFile(private val file: File, val charset: Charset) : IO<String>() {
