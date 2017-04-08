@@ -1,10 +1,12 @@
 import com.athaydes.kootlin.*
-import com.athaydes.kootlin.Map
+import com.athaydes.kootlin.io.BytesFile
 import com.athaydes.kootlin.io.Print
+import com.athaydes.kootlin.text.Join
 import com.athaydes.kootlin.text.Line
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class ExpressionsTest {
 
@@ -55,7 +57,7 @@ class ExpressionsTest {
     fun map() {
         val list = mutableListOf<Any>()
 
-        val map = Map(Vals("hi"), { v -> list.add(1); v + "!!" })
+        val map = Mapping(Vals("hi"), { v -> list.add(1); v + "!!" })
 
         assertEquals(listOf("hi!!"), map.lift)
         assertEquals(listOf("hi!!"), map.lift)
@@ -74,14 +76,14 @@ class ExpressionsTest {
 
     @Test
     fun ifExpressions() {
-        assertEquals("hi", If(EagerVal(true), { "hi" }, { "bye" }).lift)
-        assertEquals("bye", If(EagerVal(false), { "hi" }, { "bye" }).lift)
+        assertEquals("hi", Trans(Val { true }, { if (it) "hi" else "bye" }).lift)
+        assertEquals("bye", Trans(Val { false }, { if (it) "hi" else "bye" }).lift)
     }
 
     @Test
-    fun ifExpressionIsLazy() {
+    fun TransIsLazy() {
         val list = mutableListOf<Int>()
-        val ifExpr = If(EagerVal(true), { list.add(2) }, { list.add(3) })
+        val ifExpr = Trans(Val { true }, { if (it) list.add(2) else list.add(3) })
         assertTrue(list.isEmpty())
 
         // force result to be evaluated
@@ -94,22 +96,25 @@ class ExpressionsTest {
     }
 
     @Test
+    fun types() {
+        class Max<V : Comparable<V>>(first: Value<V>, others: MultiValue<V> = Empty) : Value<V>
+        by Reduction(first, others, { a, b -> if (a > b) a else b })
+
+        AssertEquals(Max(Val { 10 }, Vals(20)) to Val { 20 })
+
+        data class Person(val name: String, val age: Int)
+
+        val john = Val { Person("John", 25) }
+
+        val johnsAge = Trans(john, { it.age })
+
+        AssertEquals(johnsAge to Val { 25 })
+    }
+
+    @Test
     fun demo() {
         class Factorial(n: Val<Int>) : Value<Int>
         by Reduction(Val { 1 }, Val { 1..n.lift }, Int::times)
-
-        class AssertEquals(vararg pairs: Pair<Value<*>, Value<*>>) {
-            init {
-                val results = Map(Indexed(Vals(*pairs)), { (i, pair) ->
-                    Try { assertEquals("Iteration [$i] failed", pair.first.lift, pair.second.lift) }.result
-                })
-                val failures = FilterIs(Result.Failure::class.java, results)
-                val failPrints = Map(failures, { Print(Line(EagerVal(it.error))).run() })
-
-                // lift the prints to materialize the whole thing and print the results
-                failPrints.lift
-            }
-        }
 
         val f = Filter(Vals(1, 5, 10, 25), { it > 0 })
         val g = Filter(f, { it < 10 })
@@ -123,12 +128,13 @@ class ExpressionsTest {
         val doubleTen = Trans(ten, { 2 * it })
 
         val oneToTen = Val { 1..10 }
-        val twoToTwenty = Map(oneToTen, { 2 * it })
+        val twoToTwenty = Mapping(oneToTen, { 2 * it })
         val fiveToTen = Filter(oneToTen, { it >= 5 })
         val oneToTenSum: Value<Int> = Reduction(Val { 0 }, oneToTen, Int::plus)
-        val text = If(Cond(oneToTen, { it.last == 10 }),
-                { "ten is the largest number" },
-                { "Something is wrong!" })
+        val text: Value<String> = Trans(oneToTen, {
+            if (it.last == 10) "ten is the largest number"
+            else "Something is wrong!"
+        })
 
         val nAn = Try { 1 / 0 }
 
@@ -137,7 +143,7 @@ class ExpressionsTest {
         // explicit type shown for clarity
         val resultVal = when (res) {
             is Result.Success<Int> -> Val<Int> { res.lift }
-            is Result.Failure<*> -> Val<Throwable> { res.error }
+            is Result.Failure<Throwable> -> Val<Throwable> { res.lift }
         }
 
         println("Dividing by zero gives " + resultVal.lift)
@@ -155,6 +161,29 @@ class ExpressionsTest {
                 Val { 27 } to Factorial(Val { 2 }),
                 Val { 62 } to Factorial(Val { 3 }),
                 Val { 24 } to Factorial(Val { 4 }))
+
+        val fileReader = BytesFile(File("build.gradle"))
+        val fileContents = fileReader.run()
+
+        val fileLength: Value<Int> = when (fileContents) {
+            is Result.Success<ByteArray> -> Trans(fileContents, { it.size })
+            is Result.Failure<Throwable> -> Val { -1 }
+        }
+
+        Print(Join(" ", Val { "build.gradle has length" }, fileLength, Val { "bytes" })).run()
     }
 
+}
+
+class AssertEquals(vararg pairs: Pair<Value<*>, Value<*>>) {
+    init {
+        val results = Mapping(Indexed(Vals(*pairs)), { (i, pair) ->
+            Try { assertEquals("Iteration [$i] failed", pair.first.lift, pair.second.lift) }.result
+        })
+        val failures = FilterIs(Result.Failure::class.java, results)
+        val failPrints = Mapping(failures, { Print(Line(EagerVal(it.lift))).run() })
+
+        // lift the prints to materialize the whole thing and print the results
+        failPrints.lift
+    }
 }
