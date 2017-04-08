@@ -56,7 +56,9 @@ object Empty : MultiValue<Nothing> {
 }
 
 class Vals<out V>(vararg values: V) : MultiValue<V> {
-    override val lift: Iterable<V> by lazy { values.toList() }
+    override val lift: Iterable<V> = object : Iterable<V> {
+        override fun iterator() = values.iterator()
+    }
 }
 
 // single value transformers
