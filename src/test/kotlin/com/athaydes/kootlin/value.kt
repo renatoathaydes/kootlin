@@ -57,7 +57,7 @@ class ExpressionsTest {
     fun map() {
         val list = mutableListOf<Any>()
 
-        val map = Mapping(Vals("hi"), { v -> list.add(1); v + "!!" })
+        val map = Mapping(Vals("hi")) { v -> list.add(1); "$v!!" }
 
         assertEquals(listOf("hi!!"), map.lift)
         assertEquals(listOf("hi!!"), map.lift)
@@ -76,14 +76,14 @@ class ExpressionsTest {
 
     @Test
     fun ifExpressions() {
-        assertEquals("hi", Trans(Val { true }, { if (it) "hi" else "bye" }).lift)
-        assertEquals("bye", Trans(Val { false }, { if (it) "hi" else "bye" }).lift)
+        assertEquals("hi", Trans(Val { true }) { if (it) "hi" else "bye" }.lift)
+        assertEquals("bye", Trans(Val { false }) { if (it) "hi" else "bye" }.lift)
     }
 
     @Test
-    fun TransIsLazy() {
+    fun `trans is lazy`() {
         val list = mutableListOf<Int>()
-        val ifExpr = Trans(Val { true }, { if (it) list.add(2) else list.add(3) })
+        val ifExpr = Trans(Val { true }) { if (it) list.add(2) else list.add(3) }
         assertTrue(list.isEmpty())
 
         // force result to be evaluated
@@ -97,6 +97,8 @@ class ExpressionsTest {
 
     @Test
     fun types() {
+
+        @Suppress("MoveLambdaOutsideParentheses")
         class Max<V : Comparable<V>>(first: Value<V>, others: MultiValue<V> = Empty) : Value<V>
         by Reduction(first, others, { a, b -> if (a > b) a else b })
 
@@ -106,7 +108,7 @@ class ExpressionsTest {
 
         val john = Val { Person("John", 25) }
 
-        val johnsAge = Trans(john, { it.age })
+        val johnsAge = Trans(john) { it.age }
 
         AssertEquals(johnsAge to Val { 25 })
     }
@@ -125,25 +127,25 @@ class ExpressionsTest {
         val y: MultiValue<Float> = Empty
 
         val ten = Val { 10 }
-        val doubleTen = Trans(ten, { 2 * it })
+        val doubleTen = Trans(ten) { 2 * it }
 
         val oneToTen = Val { 1..10 }
-        val twoToTwenty = Mapping(oneToTen, { 2 * it })
+        val twoToTwenty = Mapping(oneToTen) { 2 * it }
         val fiveToTen = Filter(oneToTen, { it >= 5 })
         val oneToTenSum: Value<Int> = Reduction(Val { 0 }, oneToTen, Int::plus)
-        val text: Value<String> = Trans(oneToTen, {
+        val text: Value<String> = Trans(oneToTen) {
             if (it.last == 10) "ten is the largest number"
             else "Something is wrong!"
-        })
+        }
 
+        @Suppress("DIVISION_BY_ZERO")
         val nAn = Try { 1 / 0 }
 
         val res: Result<Int, Throwable> = nAn.result
 
-        // explicit type shown for clarity
         val resultVal = when (res) {
-            is Result.Success<Int> -> Val<Int> { res.lift }
-            is Result.Failure<Throwable> -> Val<Throwable> { res.lift }
+            is Result.Success<Int> -> Val { res.lift }
+            is Result.Failure<Throwable> -> Val { res.lift }
         }
 
         println("Dividing by zero gives " + resultVal.lift)
@@ -158,15 +160,15 @@ class ExpressionsTest {
 
         AssertEquals(
                 Val { 1 } to Factorial(Val { 1 }),
-                Val { 27 } to Factorial(Val { 2 }),
-                Val { 62 } to Factorial(Val { 3 }),
+                Val { 2 } to Factorial(Val { 2 }),
+                Val { 6 } to Factorial(Val { 3 }),
                 Val { 24 } to Factorial(Val { 4 }))
 
         val fileReader = BytesFile(File("build.gradle"))
         val fileContents = fileReader.run()
 
         val fileLength: Value<Int> = when (fileContents) {
-            is Result.Success<ByteArray> -> Trans(fileContents, { it.size })
+            is Result.Success<ByteArray> -> Trans(fileContents) { it.size }
             is Result.Failure<Throwable> -> Val { -1 }
         }
 
@@ -177,11 +179,11 @@ class ExpressionsTest {
 
 class AssertEquals(vararg pairs: Pair<Value<*>, Value<*>>) {
     init {
-        val results = Mapping(Indexed(Vals(*pairs)), { (i, pair) ->
+        val results = Mapping(Indexed(Vals(*pairs))) { (i, pair) ->
             Try { assertEquals("Iteration [$i] failed", pair.first.lift, pair.second.lift) }.result
-        })
+        }
         val failures = FilterIs(Result.Failure::class.java, results)
-        val failPrints = Mapping(failures, { Print(Line(EagerVal(it.lift))).run() })
+        val failPrints = Mapping(failures) { Print(Line(EagerVal(it.lift))).run() }
 
         // lift the prints to materialize the whole thing and print the results
         failPrints.lift

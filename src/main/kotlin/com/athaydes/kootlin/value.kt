@@ -101,6 +101,7 @@ class Mapping<in F, out T>(value: MultiValue<F>, transform: (F) -> T) : MultiVal
     override val lift by lazy { value.lift.map(transform) }
 }
 
+@Suppress("MoveLambdaOutsideParentheses") // won't compile if we do that
 class Filter<out V>(value: MultiValue<V>, vararg predicates: (V) -> Boolean) : MultiValue<V>
 by Reduction(value, Vals(*predicates), { v, p -> v.filter(p) })
 

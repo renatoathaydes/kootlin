@@ -10,13 +10,12 @@ typealias IOResult<V> = Result<V, Throwable>
 
 abstract class IO<out V> {
     internal abstract val action: () -> V
-    private val trier = { Try({ action() }) }
+    private val trier = { Try { action() } }
 
     fun run(): IOResult<V> = trier().result
 }
 
 class Print<out V>(private val value: Value<V>) : IO<V>() {
-    @Suppress("ConvertLambdaToReference") // ambiguous
     override val action = { print(value.lift); value.lift }
 }
 
