@@ -89,7 +89,7 @@ val doubleTen = Trans(ten, { 2 * it })
 
 ```kotlin
 val oneToTen = Val { 1..10 }
-val twoToTwenty = Mapping(oneToTen, { 2 * it })
+val twoToTwenty = Mapping(oneToTen) { 2 * it }
 ```
 
 > The fact that we need both `Trans` and `Mapping` instead of a single Object for both `Value` and `MultiValue`
@@ -98,7 +98,7 @@ val twoToTwenty = Mapping(oneToTen, { 2 * it })
 A selection of only certain items from a `MultiValue` can be described with the `Filter` object:
 
 ```kotlin
-val fiveToTen = Filter(oneToTen, { it >= 5 })
+val fiveToTen = Filter(oneToTen) { it >= 5 }
 ```
 
 A reduction from a `MultiValue` into another `MultiValue`, potentially with a different number of items, or even
@@ -114,10 +114,10 @@ val oneToTenSum: Value<Int> = Reduction(Val { 0 }, oneToTen, Int::plus)
 Conditional transformation can be obtained with the `Trans` object and an `if` expression:
 
 ```kotlin
-val text: Value<String> = Trans(oneToTen, { 
+val text: Value<String> = Trans(oneToTen) {
     if (it.last == 10) "ten is the largest number" 
     else "Something is wrong!" 
-})
+}
 ```
 
 ## Error handling
@@ -190,7 +190,7 @@ Now, you can use all of Kootlin Objects with your data class! For example, to ac
 `Trans` Object:
 
 ```kotlin
-val johnsAge = Trans(john, { it.age })
+val johnsAge = Trans(john) { it.age }
 ```
 
 ## IO type and side-effects
@@ -233,7 +233,7 @@ val fileReader = BytesFile(File("build.gradle"))
 val fileContents = fileReader.run()
 
 val fileLength: Value<Int> = when (fileContents) {
-    is Result.Success<ByteArray> -> Trans(fileContents, { it.size })
+    is Result.Success<ByteArray> -> Trans(fileContents) { it.size }
     is Result.Failure<Throwable> -> Val { -1 }
 }
 
